@@ -7,12 +7,6 @@ import {
 import { NodeApiError } from 'n8n-workflow';
 import FormData from 'form-data';
 
-interface VideoOutput {
-	filename: string;
-	subfolder?: string;
-	type: string;
-}
-
 interface ComfyUINode {
 	inputs: Record<string, any>;
 	class_type: string;
@@ -248,47 +242,68 @@ export class ComfyuiImageToVideo implements INodeType {
 
 					// Process video output
 					if (!promptResult.outputs) {
-						throw new NodeApiError(this.getNode(), { message: '[ComfyUI] No video output found' });
+						throw new NodeApiError(this.getNode(), { message: '[ComfyUI] No outputs found in results' });
 					}
 
-					// Get video output
-					const videoOutput = Object.values(promptResult.outputs)
-						.find((output: any) => output.type === 'video') as VideoOutput;
+					// Find SaveAnimatedWEBP nodes and their outputs
+					const saveNodes = Object.entries(workflowData as ComfyUIWorkflow)
+						.filter(([_, node]) => node.class_type === 'SaveAnimatedWEBP');
 
-					if (!videoOutput) {
-						throw new NodeApiError(this.getNode(), { message: '[ComfyUI] No video output found in results' });
+					if (saveNodes.length === 0) {
+						throw new NodeApiError(this.getNode(), { message: '[ComfyUI] No SaveAnimatedWEBP node found in workflow' });
 					}
 
-					console.log(`[ComfyUI] Downloading video: ${videoOutput.filename}`);
-					const videoUrl = `${apiUrl}/view?filename=${videoOutput.filename}&subfolder=${videoOutput.subfolder || ''}&type=video`;
+					// Get all image outputs using flatMap
+					const imageOutputs = Object.entries(promptResult.outputs)
+						.filter(([nodeId]) => saveNodes.some(([saveNodeId]) => saveNodeId === nodeId))
+						.flatMap(([nodeId, output]: [string, any]) => {
+							const images = output.images || [];
+							return images.map((img: any) => ({
+								nodeId,
+								...img,
+								url: `${apiUrl}/view?filename=${img.filename}&subfolder=${img.subfolder || ''}&type=${img.type}`
+							}));
+						});
 
-					const videoData = await this.helpers.request({
-						method: 'GET',
-						url: videoUrl,
-						encoding: null,
-						headers,
-					});
+					if (imageOutputs.length === 0) {
+						throw new NodeApiError(this.getNode(), { message: '[ComfyUI] No video outputs found in results' });
+					}
 
-					const videoBase64 = Buffer.from(videoData).toString('base64');
-					const item: INodeExecutionData = {
-						json: {
-							filename: videoOutput.filename,
-							subfolder: videoOutput.subfolder,
-							type: videoOutput.type,
-						},
-						binary: {
-							data: {
-								fileName: videoOutput.filename,
-								data: videoBase64,
-								fileType: 'video',
-								fileSize: Math.round(videoData.length / 1024 * 10) / 10 + " kB",
-								fileExtension: 'webm',
-								mimeType: 'video/webm',
-							}
-						}
-					};
+					// Return the first video output along with debug info
+					const videoOutput = imageOutputs[0];
+                    const videoResponse = await this.helpers.request({
+                        method: 'GET',
+                        url: videoOutput.url,
+                        encoding: null,
+                        resolveWithFullResponse: true
+                    });
 
-					return [[item]];
+                    if (videoResponse.statusCode === 404) {
+                        throw new NodeApiError(this.getNode(), { message: `Video file not found at ${videoOutput.url}` });
+                    }
+
+                    const buffer = Buffer.from(videoResponse.body);
+                    const base64Data = buffer.toString('base64');
+                    const fileSize = Math.round(buffer.length / 1024 * 10) / 10 + " kB";
+
+                    return [[{
+                        json: {
+                            mimeType: 'image/webp',
+                            fileName: videoOutput.filename,
+                            data: base64Data,
+                            status: promptResult.status,
+                        },
+                        binary: {
+                            data: {
+                                fileName: videoOutput.filename,
+                                data: base64Data,
+                                fileType: 'video',
+                                fileSize,
+                                fileExtension: 'webp',
+                                mimeType: 'image/webp'
+                            }
+                        }
+                    }]];
 				}
 			}
 			throw new NodeApiError(this.getNode(), { message: `Video generation timeout after ${timeout} minutes` });
