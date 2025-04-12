@@ -42,7 +42,7 @@
       "dist/credentials/ComfyUIApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/ComfyUI/Comfyui.node.js"
+      "dist/nodes/ComfyUI/ComfyuiImageToVideo.node.js"
     ]
   },
   "devDependencies": {
@@ -58,6 +58,7 @@
     "n8n-workflow": "*"
   },
   "dependencies": {
-    "jimp": "^1.6.0"
+    "jimp": "^1.6.0",
+    "form-data": "^4.0.0"
   }
 }
