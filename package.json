@@ -18,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/christiankuri/n8n-nodes-comfyui-image-to-video.git"
+    "url": "git+https://github.com/christiankuri/n8n-nodes-comfyui-image-to-video.git"
   },
   "engines": {
     "node": ">=18.10",
