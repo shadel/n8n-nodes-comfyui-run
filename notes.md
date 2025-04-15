@@ -65,7 +65,6 @@ This is an n8n node package that provides integration with ComfyUI, a powerful a
 
 #### Dependencies
 - Main Dependencies:
-  - jimp: ^1.6.0 (image processing)
   - n8n-workflow: * (peer dependency)
 - Dev Dependencies:
   - TypeScript
