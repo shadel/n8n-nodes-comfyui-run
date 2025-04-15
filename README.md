@@ -1,6 +1,6 @@
 ![Banner image](https://user-images.githubusercontent.com/10284570/173569848-c624317f-42b1-45a6-ab09-f0ea3c247648.png)
 
-# n8n-nodes-comfyui
+# n8n-nodes-comfyui-image-to-video
 
 This package provides n8n nodes to integrate with [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - A powerful and modular stable diffusion GUI with a graph/nodes interface.
 
@@ -23,7 +23,7 @@ This package provides n8n nodes to integrate with [ComfyUI](https://github.com/c
 ## Installation
 
 ```bash
-npm install n8n-nodes-comfyui
+npm install n8n-nodes-comfyui-image-to-video
 ```
 
 ## Node Types
