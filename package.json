@@ -6,7 +6,9 @@
     "n8n-community-node-package",
     "comfyui",
     "stable-diffusion",
-    "image-to-video"
+    "image-to-video",
+    "video-generation",
+    "wan-image-to-video"
   ],
   "license": "MIT",
   "homepage": "",
