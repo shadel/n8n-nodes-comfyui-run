@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "@types/form-data": "^2.5.2",
+    "@types/node": "^22.14.1",
     "@typescript-eslint/parser": "^7.15.0",
     "eslint": "^8.56.0",
     "eslint-plugin-n8n-nodes-base": "^1.16.1",
