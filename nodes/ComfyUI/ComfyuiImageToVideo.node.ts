@@ -57,14 +57,6 @@ export class ComfyuiImageToVideo implements INodeType {
 				description: 'The ComfyUI workflow in JSON format',
 			},
 			{
-				displayName: 'Input Image',
-				name: 'inputImage',
-				type: 'string',
-				default: '',
-				required: true,
-				description: 'URL, base64, or binary data of the input image',
-			},
-			{
 				displayName: 'Input Type',
 				name: 'inputType',
 				type: 'options',
@@ -75,6 +67,32 @@ export class ComfyuiImageToVideo implements INodeType {
 				],
 				default: 'url',
 				required: true,
+			},
+			{
+				displayName: 'Input Image',
+				name: 'inputImage',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						inputType: ['url', 'base64'],
+					},
+				},
+				description: 'URL or base64 data of the input image',
+			},
+			{
+				displayName: 'Binary Property',
+				name: 'binaryPropertyName',
+				type: 'string',
+				default: 'data',
+				required: true,
+				displayOptions: {
+					show: {
+						inputType: ['binary'],
+					},
+				},
+				description: 'Name of the binary property containing the image',
 			},
 			{
 				displayName: 'Timeout',
@@ -89,7 +107,6 @@ export class ComfyuiImageToVideo implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const credentials = await this.getCredentials('comfyUIApi');
 		const workflow = this.getNodeParameter('workflow', 0) as string;
-		const inputImage = this.getNodeParameter('inputImage', 0) as string;
 		const inputType = this.getNodeParameter('inputType', 0) as string;
 		const timeout = this.getNodeParameter('timeout', 0) as number;
 
@@ -119,8 +136,11 @@ export class ComfyuiImageToVideo implements INodeType {
 
 			// Prepare input image
 			let imageBuffer: Buffer;
+			
 			if (inputType === 'url') {
 				// Download image from URL
+				const inputImage = this.getNodeParameter('inputImage', 0) as string;
+				console.log('[ComfyUI] Downloading image from URL:', inputImage);
 				const response = await this.helpers.request({
 					method: 'GET',
 					url: inputImage,
@@ -128,10 +148,56 @@ export class ComfyuiImageToVideo implements INodeType {
 				});
 				imageBuffer = Buffer.from(response);
 			} else if (inputType === 'binary') {
-				// Get binary data from n8n
-				imageBuffer = this.getNodeParameter('inputImage', 0, '', { extractValue: true }) as Buffer;
+				// Get binary data using helpers
+				console.log('[ComfyUI] Getting binary data from input');
+				
+				// Get the binary property name
+				const binaryPropertyName = this.getNodeParameter('binaryPropertyName', 0) as string;
+				console.log('[ComfyUI] Looking for binary property:', binaryPropertyName);
+				
+				// Log available binary properties for debugging
+				const items = this.getInputData();
+				const binaryProperties = Object.keys(items[0].binary || {});
+				console.log('[ComfyUI] Available binary properties:', binaryProperties);
+				
+				// Try to find the specified binary property
+				let actualPropertyName = binaryPropertyName;
+				
+				if (!items[0].binary?.[binaryPropertyName]) {
+					console.log(`[ComfyUI] Binary property "${binaryPropertyName}" not found, searching for alternatives...`);
+					
+					// Try to find any image property as fallback
+					const imageProperty = binaryProperties.find(key => 
+						items[0].binary![key].mimeType?.startsWith('image/')
+					);
+					
+					if (imageProperty) {
+						console.log(`[ComfyUI] Found alternative image property: "${imageProperty}"`);
+						actualPropertyName = imageProperty;
+					} else {
+						throw new NodeApiError(this.getNode(), { 
+							message: `No binary data found in property "${binaryPropertyName}" and no image alternatives found`
+						});
+					}
+				}
+				
+				// Get binary data
+				imageBuffer = await this.helpers.getBinaryDataBuffer(0, actualPropertyName);
+				console.log('[ComfyUI] Got binary data, size:', imageBuffer.length, 'bytes');
+				
+				// Get mime type for validation
+				const mimeType = items[0].binary![actualPropertyName].mimeType;
+				console.log('[ComfyUI] Binary data mime type:', mimeType);
+				
+				// Validate it's an image
+				if (!mimeType || !mimeType.startsWith('image/')) {
+					throw new NodeApiError(this.getNode(), {
+						message: `Invalid media type: ${mimeType}. Only images are supported.`
+					});
+				}
 			} else {
 				// Base64 input
+				const inputImage = this.getNodeParameter('inputImage', 0) as string;
 				imageBuffer = Buffer.from(inputImage, 'base64');
 			}
 
