@@ -240,37 +240,40 @@ export class ComfyuiImageToVideo implements INodeType {
 						throw new NodeApiError(this.getNode(), { message: '[ComfyUI] Video generation failed' });
 					}
 
-					// Process video output
-					if (!promptResult.outputs) {
-						throw new NodeApiError(this.getNode(), { message: '[ComfyUI] No outputs found in results' });
+					// Check outputs structure
+					console.log('[ComfyUI] Raw outputs structure:', JSON.stringify(promptResult.outputs, null, 2));
+					
+					// Get all images outputs with simpler approach
+					const mediaOutputs = Object.values(promptResult.outputs)
+						.flatMap((nodeOutput: any) => nodeOutput.images || nodeOutput.gifs || [])
+						.filter((image: any) => image.type === 'output' || image.type === 'temp')
+						.map((img: any) => ({
+							...img,
+							url: `${apiUrl}/view?filename=${img.filename}&subfolder=${img.subfolder || ''}&type=${img.type}`
+						}));
+
+					console.log('[ComfyUI] Found media outputs:', mediaOutputs);
+
+					if (mediaOutputs.length === 0) {
+						throw new NodeApiError(this.getNode(), { message: '[ComfyUI] No media outputs found in results' });
 					}
 
-					// Find SaveAnimatedWEBP nodes and their outputs
-					const saveNodes = Object.entries(workflowData as ComfyUIWorkflow)
-						.filter(([_, node]) => node.class_type === 'SaveAnimatedWEBP');
+					// Prioritize video outputs (WEBP, MP4, etc.)
+					const videoOutputs = mediaOutputs.filter(output => 
+						output.filename.endsWith('.webp') || 
+						output.filename.endsWith('.mp4') ||
+						output.filename.endsWith('.gif')
+					);
 
-					if (saveNodes.length === 0) {
-						throw new NodeApiError(this.getNode(), { message: '[ComfyUI] No SaveAnimatedWEBP node found in workflow' });
-					}
-
-					// Get all image outputs using flatMap
-					const imageOutputs = Object.entries(promptResult.outputs)
-						.filter(([nodeId]) => saveNodes.some(([saveNodeId]) => saveNodeId === nodeId))
-						.flatMap(([nodeId, output]: [string, any]) => {
-							const images = output.images || [];
-							return images.map((img: any) => ({
-								nodeId,
-								...img,
-								url: `${apiUrl}/view?filename=${img.filename}&subfolder=${img.subfolder || ''}&type=${img.type}`
-							}));
-						});
-
-					if (imageOutputs.length === 0) {
+					if (videoOutputs.length === 0) {
 						throw new NodeApiError(this.getNode(), { message: '[ComfyUI] No video outputs found in results' });
 					}
 
-					// Return the first video output along with debug info
-					const videoOutput = imageOutputs[0];
+					console.log('[ComfyUI] Found video outputs:', videoOutputs);
+
+					// Return the first video output
+					const videoOutput = videoOutputs[0];
+                    
                     const videoResponse = await this.helpers.request({
                         method: 'GET',
                         url: videoOutput.url,
@@ -282,13 +285,26 @@ export class ComfyuiImageToVideo implements INodeType {
                         throw new NodeApiError(this.getNode(), { message: `Video file not found at ${videoOutput.url}` });
                     }
 
+                    console.log('[ComfyUI] Using media directly from ComfyUI');
                     const buffer = Buffer.from(videoResponse.body);
                     const base64Data = buffer.toString('base64');
                     const fileSize = Math.round(buffer.length / 1024 * 10) / 10 + " kB";
 
+                    // Determine MIME type based on file extension
+                    let mimeType = 'image/webp';
+                    let fileExtension = 'webp';
+                    
+                    if (videoOutput.filename.endsWith('.mp4')) {
+                        mimeType = 'video/mp4';
+                        fileExtension = 'mp4';
+                    } else if (videoOutput.filename.endsWith('.gif')) {
+                        mimeType = 'image/gif';
+                        fileExtension = 'gif';
+                    }
+
                     return [[{
                         json: {
-                            mimeType: 'image/webp',
+                            mimeType,
                             fileName: videoOutput.filename,
                             data: base64Data,
                             status: promptResult.status,
@@ -299,8 +315,8 @@ export class ComfyuiImageToVideo implements INodeType {
                                 data: base64Data,
                                 fileType: 'video',
                                 fileSize,
-                                fileExtension: 'webp',
-                                mimeType: 'image/webp'
+                                fileExtension,
+                                mimeType
                             }
                         }
                     }]];
