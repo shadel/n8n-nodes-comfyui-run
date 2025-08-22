@@ -4,14 +4,10 @@ on:
   push:
     branches:
       - master
-    paths:
-      - 'package.json'
 
 jobs:
   publish:
-    name: Publish npm package
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,16 +26,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check if version changed
+      - name: Check version difference
         id: version
         run: |
-          git fetch --depth=2 origin master
-          PREV_VERSION=$(git show HEAD~1:package.json | jq -r '.version')
+          PACKAGE_NAME=$(jq -r '.name' package.json)
           CURR_VERSION=$(jq -r '.version' package.json)
-          echo "Previous version: $PREV_VERSION"
+
+          echo "Package name: $PACKAGE_NAME"
           echo "Current version: $CURR_VERSION"
 
-          if [ "$PREV_VERSION" != "$CURR_VERSION" ]; then
+          # Get latest published version from npm (or 0.0.0 if not published yet)
+          PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME" version || echo "0.0.0")
+          echo "Published version: $PUBLISHED_VERSION"
+
+          # Compare semver order using npm's semver tool
+          if npx semver -r ">$PUBLISHED_VERSION" "$CURR_VERSION" > /dev/null; then
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "version=$CURR_VERSION" >> $GITHUB_OUTPUT
           else

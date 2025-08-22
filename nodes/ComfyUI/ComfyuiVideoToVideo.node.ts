@@ -1,5 +1,5 @@
 // comfyuiVideoToVideo.ts
-import { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, NodeOperationError } from 'n8n-workflow';
+import { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription } from 'n8n-workflow';
 import { NodeApiError } from 'n8n-workflow';
 import FormData from 'form-data';
 import { N8nApiClient } from './apiClient';
