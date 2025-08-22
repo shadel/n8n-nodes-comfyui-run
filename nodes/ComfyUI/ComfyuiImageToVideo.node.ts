@@ -28,7 +28,7 @@ interface ImageInfo {
 export class ComfyuiImageToVideo implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'ComfyUI Image to Video',
-		name: 'comfyuiImageToVideo',
+		name: 'comfyuiImageToVideoV2',
 		icon: 'file:comfyui.svg',
 		group: ['transform'],
 		version: 1,
@@ -136,7 +136,7 @@ export class ComfyuiImageToVideo implements INodeType {
 
 			// Prepare input image
 			let imageBuffer: Buffer;
-			
+
 			if (inputType === 'url') {
 				// Download image from URL
 				const inputImage = this.getNodeParameter('inputImage', 0) as string;
@@ -150,45 +150,45 @@ export class ComfyuiImageToVideo implements INodeType {
 			} else if (inputType === 'binary') {
 				// Get binary data using helpers
 				console.log('[ComfyUI] Getting binary data from input');
-				
+
 				// Get the binary property name
 				const binaryPropertyName = this.getNodeParameter('binaryPropertyName', 0) as string;
 				console.log('[ComfyUI] Looking for binary property:', binaryPropertyName);
-				
+
 				// Log available binary properties for debugging
 				const items = this.getInputData();
 				const binaryProperties = Object.keys(items[0].binary || {});
 				console.log('[ComfyUI] Available binary properties:', binaryProperties);
-				
+
 				// Try to find the specified binary property
 				let actualPropertyName = binaryPropertyName;
-				
+
 				if (!items[0].binary?.[binaryPropertyName]) {
 					console.log(`[ComfyUI] Binary property "${binaryPropertyName}" not found, searching for alternatives...`);
-					
+
 					// Try to find any image property as fallback
-					const imageProperty = binaryProperties.find(key => 
+					const imageProperty = binaryProperties.find(key =>
 						items[0].binary![key].mimeType?.startsWith('image/')
 					);
-					
+
 					if (imageProperty) {
 						console.log(`[ComfyUI] Found alternative image property: "${imageProperty}"`);
 						actualPropertyName = imageProperty;
 					} else {
-						throw new NodeApiError(this.getNode(), { 
+						throw new NodeApiError(this.getNode(), {
 							message: `No binary data found in property "${binaryPropertyName}" and no image alternatives found`
 						});
 					}
 				}
-				
+
 				// Get binary data
 				imageBuffer = await this.helpers.getBinaryDataBuffer(0, actualPropertyName);
 				console.log('[ComfyUI] Got binary data, size:', imageBuffer.length, 'bytes');
-				
+
 				// Get mime type for validation
 				const mimeType = items[0].binary![actualPropertyName].mimeType;
 				console.log('[ComfyUI] Binary data mime type:', mimeType);
-				
+
 				// Validate it's an image
 				if (!mimeType || !mimeType.startsWith('image/')) {
 					throw new NodeApiError(this.getNode(), {
@@ -226,7 +226,7 @@ export class ComfyuiImageToVideo implements INodeType {
 			try {
 				workflowData = JSON.parse(workflow);
 			} catch (error) {
-				throw new NodeApiError(this.getNode(), { 
+				throw new NodeApiError(this.getNode(), {
 					message: 'Invalid workflow JSON. Please check the JSON syntax and try again.',
 					description: error.message
 				});
@@ -234,18 +234,18 @@ export class ComfyuiImageToVideo implements INodeType {
 
 			// Validate workflow structure
 			if (typeof workflowData !== 'object' || workflowData === null) {
-				throw new NodeApiError(this.getNode(), { 
+				throw new NodeApiError(this.getNode(), {
 					message: 'Invalid workflow structure. The workflow must be a valid JSON object.'
 				});
 			}
 
 			// Find the LoadImage node and update its image data
-			const loadImageNode = Object.values(workflowData as ComfyUIWorkflow).find((node: ComfyUINode) => 
+			const loadImageNode = Object.values(workflowData as ComfyUIWorkflow).find((node: ComfyUINode) =>
 				node.class_type === 'LoadImage' && node.inputs && node.inputs.image !== undefined
 			);
 
 			if (!loadImageNode) {
-				throw new NodeApiError(this.getNode(), { 
+				throw new NodeApiError(this.getNode(), {
 					message: 'No LoadImage node found in the workflow. The workflow must contain a LoadImage node with an image input.'
 				});
 			}
@@ -308,7 +308,7 @@ export class ComfyuiImageToVideo implements INodeType {
 
 					// Check outputs structure
 					console.log('[ComfyUI] Raw outputs structure:', JSON.stringify(promptResult.outputs, null, 2));
-					
+
 					// Get all images outputs with simpler approach
 					const mediaOutputs = Object.values(promptResult.outputs)
 						.flatMap((nodeOutput: any) => nodeOutput.images || nodeOutput.gifs || [])
@@ -325,8 +325,8 @@ export class ComfyuiImageToVideo implements INodeType {
 					}
 
 					// Prioritize video outputs (WEBP, MP4, etc.)
-					const videoOutputs = mediaOutputs.filter(output => 
-						output.filename.endsWith('.webp') || 
+					const videoOutputs = mediaOutputs.filter(output =>
+						output.filename.endsWith('.webp') ||
 						output.filename.endsWith('.mp4') ||
 						output.filename.endsWith('.gif')
 					);
@@ -339,7 +339,7 @@ export class ComfyuiImageToVideo implements INodeType {
 
 					// Return the first video output
 					const videoOutput = videoOutputs[0];
-                    
+
                     const videoResponse = await this.helpers.request({
                         method: 'GET',
                         url: videoOutput.url,
@@ -359,7 +359,7 @@ export class ComfyuiImageToVideo implements INodeType {
                     // Determine MIME type based on file extension
                     let mimeType = 'image/webp';
                     let fileExtension = 'webp';
-                    
+
                     if (videoOutput.filename.endsWith('.mp4')) {
                         mimeType = 'video/mp4';
                         fileExtension = 'mp4';
@@ -391,10 +391,10 @@ export class ComfyuiImageToVideo implements INodeType {
 			throw new NodeApiError(this.getNode(), { message: `Video generation timeout after ${timeout} minutes` });
 		} catch (error) {
 			console.error('[ComfyUI] Video generation error:', error);
-			throw new NodeApiError(this.getNode(), { 
+			throw new NodeApiError(this.getNode(), {
 				message: `ComfyUI API Error: ${error.message}`,
 				description: error.description || ''
 			});
 		}
 	}
-} 
+}
