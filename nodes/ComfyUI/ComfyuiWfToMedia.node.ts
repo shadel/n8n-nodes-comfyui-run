@@ -2,6 +2,7 @@ import { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription 
 import { NodeApiError } from 'n8n-workflow';
 import { N8nApiClient } from './apiClient';
 import { Poller } from './poller';
+import { WorkflowService } from './workflowService';
 
 export class ComfyuiWfToMedia implements INodeType {
 	description: INodeTypeDescription = {
@@ -57,12 +58,14 @@ export class ComfyuiWfToMedia implements INodeType {
 			const workflow = this.getNodeParameter('workflow', 0) as string;
 			const timeout = this.getNodeParameter('timeout', 0) as number;
 
+			const wf = WorkflowService.parse(workflow);
+
 			// Queue job
 			const response = await api.request<any>({
 				method: 'POST',
 				url: `${apiUrl}/prompt`,
 				headers,
-				body: { prompt: workflow },
+				body: { prompt: wf },
 				json: true,
 			});
 			if (!response.prompt_id) throw  new NodeApiError(this.getNode(), { message: 'Failed to get prompt ID'});
