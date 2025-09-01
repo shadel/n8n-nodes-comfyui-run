@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-comfyui-media",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "n8n node to integrate with ComfyUI stable diffusion workflows for image to video conversion",
   "keywords": [
     "n8n-community-node-package",
