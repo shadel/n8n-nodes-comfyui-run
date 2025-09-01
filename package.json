@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-comfyui-media",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "n8n node to integrate with ComfyUI stable diffusion workflows for image to video conversion",
   "keywords": [
     "n8n-community-node-package",
@@ -47,7 +47,8 @@
       "dist/nodes/ComfyUI/ComfyuiImageToVideoV2.node.js",
       "dist/nodes/ComfyUI/ComfyuiVideoToVideo.node.js",
       "dist/nodes/ComfyUI/ComfyuiWfToMedia.node.js",
-      "dist/nodes/ComfyUI/ComfyuiMediaUpload.node.js"
+      "dist/nodes/ComfyUI/ComfyuiMediaUpload.node.js",
+      "dist/nodes/ComfyUI/ComfyuiStatus.node.js"
     ]
   },
   "devDependencies": {
