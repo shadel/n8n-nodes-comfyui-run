@@ -1,7 +1,7 @@
 import { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, NodeOperationError } from 'n8n-workflow';
 import { NodeApiError } from 'n8n-workflow';
 import { N8nApiClient } from '../ComfyUI/apiClient';
-import { TwitterApi } from 'twitter-api-v2';
+import { EUploadMimeType, TwitterApi } from 'twitter-api-v2';
 import { Base64InputProvider, BinaryInputProvider, UrlInputProvider } from '../ComfyUI/inputProviders';
 
 
@@ -18,7 +18,7 @@ export class XMediaUpload implements INodeType {
 		},
 		credentials: [
 			{
-				name: 'twitterOAuth2Api',
+				name: 'oAuth2Api',
 				required: true,
 			},
 		],
@@ -68,7 +68,7 @@ export class XMediaUpload implements INodeType {
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const api = new N8nApiClient(this.helpers);
-		const credentials = (await this.getCredentials('twitterOAuth2Api')) as any;
+		const credentials = (await this.getCredentials('oAuth2Api')) as any;
 		const accessToken = credentials.oauthTokenData?.access_token;
 
 		if (!accessToken) {
@@ -96,9 +96,9 @@ export class XMediaUpload implements INodeType {
 
 			const buffer = await provider.getBuffer();
 
-			const uploadMedia = await appOnlyClient.v1.uploadMedia(buffer, {
-				type: "mp4"
-			}, true);
+			const uploadMedia = await appOnlyClient.v2.uploadMedia(buffer, {
+				media_type: EUploadMimeType.Mp4
+			});
 
 
 			return [this.helpers.returnJsonArray({media: uploadMedia, me})];
