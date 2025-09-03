@@ -95,7 +95,7 @@ export class XMediaUpload implements INodeType {
 			const buffer = await provider.getBuffer();
 
 			const uploadMedia = await appOnlyClient.v1.uploadMedia(buffer, {
-
+				type: "mp4"
 			}, true);
 
 
