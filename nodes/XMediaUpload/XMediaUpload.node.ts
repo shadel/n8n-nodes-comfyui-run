@@ -76,7 +76,7 @@ export class XMediaUpload implements INodeType {
 		}
 		const appOnlyClient = new TwitterApi(accessToken);
 
-
+		const me = await appOnlyClient.v2.me();
 		try {
 
 			// Choose input strategy
@@ -101,10 +101,10 @@ export class XMediaUpload implements INodeType {
 			}, true);
 
 
-			return [this.helpers.returnJsonArray({media: uploadMedia})];
+			return [this.helpers.returnJsonArray({media: uploadMedia, me})];
 
 		} catch (err: any) {
-			throw new NodeApiError(this.getNode(), { message: err.message });
+			throw new NodeApiError(this.getNode(), { message: err.message + " : " + JSON.stringify(me) + " : " + JSON.stringify(credentials), });
 		}
 	}
 }
