@@ -1,4 +1,4 @@
-import { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription } from 'n8n-workflow';
+import { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription, NodeOperationError } from 'n8n-workflow';
 import { NodeApiError } from 'n8n-workflow';
 import { N8nApiClient } from '../ComfyUI/apiClient';
 import { TwitterApi } from 'twitter-api-v2';
@@ -68,10 +68,12 @@ export class XMediaUpload implements INodeType {
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const api = new N8nApiClient(this.helpers);
-		const credentials = await this.getCredentials('twitterOAuth2Api') as {
-			accessToken: string;
-		};
-		const accessToken = credentials.accessToken as string;
+		const credentials = (await this.getCredentials('twitterOAuth2Api')) as any;
+		const accessToken = credentials.oauthTokenData?.access_token;
+
+		if (!accessToken) {
+				throw new NodeOperationError(this.getNode(), 'No access token available!:' + JSON.stringify(credentials));
+		}
 		const appOnlyClient = new TwitterApi(accessToken);
 
 
