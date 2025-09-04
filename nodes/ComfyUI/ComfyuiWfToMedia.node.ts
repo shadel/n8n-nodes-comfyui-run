@@ -106,20 +106,24 @@ export class ComfyuiWfToMedia implements INodeType {
 
 			const results: INodeExecutionData[] = [];
 
+			const DOWNLOAD_TIMEOUT = 300000; // 5 minutes
+
 			// Download helper
 			const downloadAndWrap = async (output: any, fileType: 'video' | 'image') => {
+				console.log(`[ComfyUI] Starting file download from: ${output.url}`);
 				const res = await this.helpers.request({
 					method: 'GET',
 					url: output.url,
 					encoding: null,
 					resolveWithFullResponse: true,
+					timeout: DOWNLOAD_TIMEOUT,
 				});
 				if (res.statusCode === 404) {
 					throw new NodeApiError(this.getNode(), { message: `File not found at ${output.url}` });
 				}
+				console.log('[ComfyUI] File downloaded successfully');
 
 				const buffer = Buffer.from(res.body);
-				const base64Data = buffer.toString('base64');
 				const fileSize = Math.round(buffer.length / 1024 * 10) / 10 + ' kB';
 
 				let mimeType = 'application/octet-stream';
@@ -129,22 +133,18 @@ export class ComfyuiWfToMedia implements INodeType {
 				else if (output.filename.endsWith('.png')) mimeType = 'image/png';
 				else if (output.filename.endsWith('.jpg') || output.filename.endsWith('.jpeg')) mimeType = 'image/jpeg';
 
+
+				const binaryData = await this.helpers.prepareBinaryData(buffer);
+				console.log('[ComfyUI] Binary data prepared successfully');
 				results.push({
 					json: {
 						mimeType,
 						fileName: output.filename,
-						data: base64Data,
 						status: promptResult.status,
+						fileSize
 					},
 					binary: {
-						data: {
-							fileName: output.filename,
-							data: base64Data,
-							fileType,
-							fileSize,
-							fileExtension: output.filename.split('.').pop(),
-							mimeType,
-						},
+						data: binaryData,
 					},
 				});
 			};

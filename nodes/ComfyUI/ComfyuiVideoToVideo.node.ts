@@ -287,7 +287,7 @@ const downloadVideo = async function(videoOutputs: Array<{url: string}>, helpers
 				},
 				binary: {
 					// Binary property name - có thể đặt tên bất kỳ
-					video: binaryData
+					data: binaryData
 				}
 			}
 		];
