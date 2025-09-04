@@ -1,5 +1,5 @@
 // comfyuiVideoToVideo.ts
-import { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription } from 'n8n-workflow';
+import { BinaryHelperFunctions, IExecuteFunctions, INode, INodeExecutionData, INodeType, INodeTypeDescription, RequestHelperFunctions } from 'n8n-workflow';
 import { NodeApiError } from 'n8n-workflow';
 import FormData from 'form-data';
 import { N8nApiClient } from './apiClient';
@@ -184,58 +184,133 @@ export class ComfyuiVideoToVideo implements INodeType {
 
 			console.log('[ComfyUI] Found video outputs:', videoOutputs);
 
-			// Return the first video output
-			const videoOutput = videoOutputs[0];
+			const results = await downloadVideo(videoOutputs, this.helpers, () => this.getNode());
 
-			const videoResponse = await this.helpers.request({
-				method: 'GET',
-				url: videoOutput.url,
-				encoding: null,
-				resolveWithFullResponse: true
-			});
+			this.helpers.prepareBinaryData
 
-			if (videoResponse.statusCode === 404) {
-				throw new NodeApiError(this.getNode(), { message: `Video file not found at ${videoOutput.url}` });
-			}
-
-			console.log('[ComfyUI] Using media directly from ComfyUI');
-			const videoBuffer = Buffer.from(videoResponse.body);
-			const base64Data = videoBuffer.toString('base64');
-			const fileSize = Math.round(videoBuffer.length / 1024 * 10) / 10 + " kB";
-
-			// Determine MIME type based on file extension
-			let mimeType = 'image/webp';
-			let fileExtension = 'webp';
-
-			if (videoOutput.filename.endsWith('.mp4')) {
-				mimeType = 'video/mp4';
-				fileExtension = 'mp4';
-			} else if (videoOutput.filename.endsWith('.gif')) {
-				mimeType = 'image/gif';
-				fileExtension = 'gif';
-			}
-
-			return [[{
-				json: {
-					mimeType,
-					fileName: videoOutput.filename,
-					data: base64Data,
-					status: promptResult.status,
-				},
-				binary: {
-					data: {
-						fileName: videoOutput.filename,
-						data: base64Data,
-						fileType: 'video',
-						fileSize,
-						fileExtension,
-						mimeType
-					}
-				}
-			}]];
+			return [results];
 
 		} catch (err: any) {
 			throw new NodeApiError(this.getNode(), { message: err.message });
 		}
 	}
 }
+
+
+const downloadVideo = async function(videoOutputs: Array<{url: string}>, helpers: RequestHelperFunctions & BinaryHelperFunctions, getNode: () => INode) {
+	const videoOutput = videoOutputs[0];
+	try {
+
+		// Configuration constants
+		const DOWNLOAD_TIMEOUT = 300000; // 5 minutes
+		const RETRY_COUNT = 3;
+		const RETRY_DELAY = 2000;
+
+		console.log(`[ComfyUI] Starting video download from: ${videoOutput.url}`);
+
+		let videoResponse;
+		let lastError;
+
+		// Retry logic
+		for (let attempt = 1; attempt <= RETRY_COUNT; attempt++) {
+			try {
+				console.log(`[ComfyUI] Download attempt ${attempt}/${RETRY_COUNT}`);
+
+				videoResponse = await helpers.request({
+					method: 'GET',
+					url: videoOutput.url,
+					encoding: null, // Important for binary data
+					timeout: DOWNLOAD_TIMEOUT,
+					resolveWithFullResponse: true,
+					gzip: true,
+				});
+
+				break;
+
+			} catch (error) {
+				lastError = error;
+				console.log(`[ComfyUI] Download attempt ${attempt} failed:`, error.message);
+
+				if (error.statusCode === 404 || error.statusCode === 403) {
+					throw error;
+				}
+
+				if (attempt < RETRY_COUNT) {
+					console.log(`[ComfyUI] Retrying in ${RETRY_DELAY}ms...`);
+					await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+				}
+			}
+		}
+
+		if (!videoResponse) {
+			throw new NodeApiError(getNode(), {
+				message: `Failed to download video after ${RETRY_COUNT} attempts: ${lastError?.message || 'Unknown error'}`
+			});
+		}
+
+		// Handle HTTP errors
+		if (videoResponse.statusCode >= 400) {
+			throw new NodeApiError(getNode(), {
+				message: `HTTP ${videoResponse.statusCode}: Failed to download video from ${videoOutput.url}`
+			});
+		}
+
+		console.log('[ComfyUI] Video downloaded successfully');
+
+		// Get buffer from response
+		const videoBuffer = Buffer.from(videoResponse.body);
+		const fileSizeKB = Math.round(videoBuffer.length / 1024 * 100) / 100;
+		const fileSizeMB = Math.round(videoBuffer.length / (1024 * 1024) * 100) / 100;
+		const fileSize = fileSizeMB >= 1 ? `${fileSizeMB} MB` : `${fileSizeKB} kB`;
+
+		console.log(`[ComfyUI] Video processed - Size: ${fileSize}`);
+
+		// Extract filename from URL or generate one
+		const urlPath = new URL(videoOutput.url).pathname;
+		const fileName = urlPath.split('/').pop() || 'video.mp4';
+
+		// Get content type from response headers
+		const contentType = videoResponse.headers['content-type'] || 'video/mp4';
+
+		const binaryData = await helpers.prepareBinaryData(videoBuffer);
+		// Return as n8n binary data format
+		const returnData = [
+			{
+				json: {
+					success: true,
+					fileName: fileName,
+					fileSize: fileSize,
+					fileSizeBytes: videoBuffer.length,
+					contentType: contentType,
+					downloadUrl: videoOutput.url,
+					timestamp: new Date().toISOString()
+				},
+				binary: {
+					// Binary property name - có thể đặt tên bất kỳ
+					video: binaryData
+				}
+			}
+		];
+
+		console.log('[ComfyUI] Binary data prepared successfully');
+
+		return returnData;
+
+	} catch (error) {
+		console.error('[ComfyUI] Video download failed:', {
+			url: videoOutput?.url,
+			error: error.message,
+			statusCode: error.statusCode
+		});
+
+		if (error instanceof NodeApiError) {
+			throw error;
+		}
+
+		throw new NodeApiError(getNode(), {
+			message: `Video download failed: ${error.message}`,
+			description: `URL: ${videoOutput?.url || 'undefined'}`,
+			httpCode: error.statusCode || 500
+		});
+	}
+};
