@@ -68,6 +68,14 @@ export class XMediaUpload implements INodeType {
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const api = new N8nApiClient(this.helpers);
+
+		const meOld = await this.helpers.request("oAuth2Api", {
+			method: "GET",
+			url: "https://api.x.com/2/users/me"
+		});
+
+		console.log("meOld", meOld);
+
 		const credentials = (await this.getCredentials('oAuth2Api')) as any;
 		const accessToken = credentials.oauthTokenData?.access_token;
 
@@ -76,8 +84,8 @@ export class XMediaUpload implements INodeType {
 		}
 		const appOnlyClient = new TwitterApi(accessToken);
 
-		const me = await appOnlyClient.v2.me();
 		try {
+			const me = await appOnlyClient.v2.me();
 
 			// Choose input strategy
 			const inputType = this.getNodeParameter('inputType', 0) as string;
@@ -104,7 +112,7 @@ export class XMediaUpload implements INodeType {
 			return [this.helpers.returnJsonArray({media: uploadMedia, me})];
 
 		} catch (err: any) {
-			throw new NodeApiError(this.getNode(), { message: err.message + " : " + JSON.stringify(me) + " : " + JSON.stringify(credentials), });
+			throw new NodeApiError(this.getNode(), { message: err.message + " : " + " : " + JSON.stringify(credentials), });
 		}
 	}
 }
